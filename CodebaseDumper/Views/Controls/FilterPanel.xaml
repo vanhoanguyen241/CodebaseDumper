@@ -1,0 +1,37 @@
+﻿<!-- CodebaseDumper/Views/Controls/FilterPanel.xaml -->
+<UserControl x:Class="CodebaseDumper.Views.Controls.FilterPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:CodebaseDumper.Views.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="400">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Phần 1: Bao gồm loại tệp -->
+        <TextBlock Grid.Row="0" Text="Include file types" FontWeight="Bold" Margin="4"/>
+        <StackPanel Grid.Row="1" Margin="4,0">
+            <!-- Nút chọn sẵn các mẫu glob -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Button Content="JS/TS" Margin="2" Click="JsTs_Click"/>
+                <Button Content="Python" Margin="2" Click="Python_Click"/>
+                <Button Content="C#" Margin="2" Click="CSharp_Click"/>
+                <Button Content="Go" Margin="2" Click="Go_Click"/>
+            </StackPanel>
+             <!--ChipListControl hiển thị danh sách glob--> 
+            <local:ChipListControl ItemsSource="{Binding IncludeGlobs, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"/>
+        </StackPanel>
+
+        <!-- Phần 2: Loại trừ thư mục -->
+        <TextBlock Grid.Row="2" Text="Exclude directories" FontWeight="Bold" Margin="4,8,4,4"/>
+        <local:ChipListControl Grid.Row="3" Margin="4,0"
+                               ItemsSource="{Binding ExcludeDirs, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"/>
+    </Grid>
+</UserControl>
