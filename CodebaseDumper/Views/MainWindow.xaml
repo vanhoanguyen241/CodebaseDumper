@@ -7,18 +7,36 @@
         Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
         WindowStartupLocation="CenterScreen">
     <!-- Bố cục hai cột:
-         Cột trái (260px cố định) chứa các điều khiển cấu hình
-         Cột phải (co giãn) sẽ chứa PreviewPanel và ActionBar trong các tác vụ sau -->
+         Cột trái (260px cố định): FolderPickerControl (Auto) + FilterPanel (*)
+         Cột phải (co giãn):       PreviewPanel (*) + ActionBar (Auto, Task 9B) -->
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="260" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <!-- Khu vực cấu hình bên trái: FolderPickerControl -->
-        <controls:FolderPickerControl Grid.Column="0" />
+        <!-- Cột trái: chọn thư mục và bộ lọc -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <!-- Khu vực chính bên phải: để trống, sẽ bổ sung sau -->
-        <Grid Grid.Column="1" />
+            <controls:FolderPickerControl Grid.Row="0" />
+            <controls:FilterPanel Grid.Row="1" />
+        </Grid>
+
+        <!-- Cột phải: xem trước cây ASCII và thanh hành động -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Panel xem trước — hiển thị cây ASCII và thống kê -->
+            <controls:PreviewPanel Grid.Row="0" />
+
+            <!-- ActionBar sẽ được thêm vào Grid.Row="1" ở Task 9B -->
+        </Grid>
     </Grid>
 </Window>
