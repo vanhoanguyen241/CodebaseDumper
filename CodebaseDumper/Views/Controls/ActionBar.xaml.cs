@@ -27,9 +27,10 @@ public partial class ActionBar
             {
                 Process.Start("explorer.exe", $"/select,\"{vm.OutputPath}\"");
             }
-            catch
+            catch (Exception ex)
             {
-                // Bỏ qua lỗi nếu không mở được Explorer
+                // Ghi lỗi ra Debug output thay vì nuốt hoàn toàn
+                System.Diagnostics.Debug.WriteLine($"Không thể mở Explorer: {ex.Message}");
             }
         }
     }
