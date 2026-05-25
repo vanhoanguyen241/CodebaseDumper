@@ -1,0 +1,83 @@
+﻿<!-- CodebaseDumper/Views/Controls/ActionBar.xaml -->
+<UserControl x:Class="CodebaseDumper.Views.Controls.ActionBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             xmlns:vm="clr-namespace:CodebaseDumper.ViewModels"
+             d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+             d:DesignHeight="40" d:DesignWidth="400">
+    <UserControl.Resources>
+        <!-- Style cho ExportButton: Ẩn khi đang Exporting hoặc Done -->
+        <Style x:Key="ExportButtonStyle" TargetType="Button">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:AppState.Exporting}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:AppState.Done}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Style cho ProgressBar: Chỉ hiện khi Exporting -->
+        <Style x:Key="ProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:AppState.Exporting}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Style cho CancelButton: Chỉ hiện khi Exporting -->
+        <Style x:Key="CancelButtonStyle" TargetType="Button">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:AppState.Exporting}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Style cho OpenFileButton: Chỉ hiện khi Done -->
+        <Style x:Key="OpenFileButtonStyle" TargetType="Button">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State}" Value="{x:Static vm:AppState.Done}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <!-- Nút Xuất file – bị vô hiệu hoá tự động qua Command.CanExecute, không can thiệp IsEnabled -->
+        <Button Content="Xuất file"
+                Command="{Binding ExportCommand}"
+                Style="{StaticResource ExportButtonStyle}"
+                Margin="2"/>
+
+        <!-- Thanh tiến trình kết xuất -->
+        <ProgressBar Value="{Binding ExportProgress}"
+                     Minimum="0" Maximum="100"
+                     Width="150" Height="20"
+                     Style="{StaticResource ProgressBarStyle}"
+                     Margin="2"/>
+
+        <!-- Nút Huỷ kết xuất -->
+        <Button Content="Huỷ"
+                Command="{Binding CancelCommand}"
+                Style="{StaticResource CancelButtonStyle}"
+                Margin="2"/>
+
+        <!-- Nút Mở file kết quả -->
+        <Button x:Name="OpenFileButton"
+                Content="Mở file kết quả"
+                Style="{StaticResource OpenFileButtonStyle}"
+                Click="OpenFileButton_Click"
+                Margin="2"/>
+    </StackPanel>
+</UserControl>
