@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterScreen">
     <!-- Bố cục hai cột:
          Cột trái (260px cố định): FolderPickerControl (Auto) + FilterPanel (*)
-         Cột phải (co giãn):       PreviewPanel (*) + ActionBar (Auto, Task 9B) -->
+         Cột phải (co giãn):       PreviewPanel (*) + ActionBar (Auto) -->
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="260" />
@@ -36,7 +36,8 @@
             <!-- Panel xem trước — hiển thị cây ASCII và thống kê -->
             <controls:PreviewPanel Grid.Row="0" />
 
-            <!-- ActionBar sẽ được thêm vào Grid.Row="1" ở Task 9B -->
+            <!-- Thanh hành động: xuất file, tiến trình, huỷ, mở file -->
+            <controls:ActionBar Grid.Row="1" />
         </Grid>
     </Grid>
 </Window>
