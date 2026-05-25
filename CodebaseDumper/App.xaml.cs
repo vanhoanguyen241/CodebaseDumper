@@ -1,8 +1,7 @@
-﻿using System.Windows;
-using CodebaseDumper.Engine;
-using CodebaseDumper.Models;
+﻿using CodebaseDumper.Engine;
 using CodebaseDumper.ViewModels;
 using CodebaseDumper.Views;
+using System.Windows;
 
 namespace CodebaseDumper;
 
@@ -12,36 +11,26 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        // Khởi tạo thủ công các phụ thuộc (không dùng container DI)
-        var fileScanner = new FileScanner();
-        var treeBuilder = new TreeBuilder();
-        var tokenEstimator = new TokenEstimator();
-        var previewProvider = new PreviewProvider(fileScanner, treeBuilder, tokenEstimator);
+        // 1. Khởi tạo các dependency cấp thấp (Tuyệt đối không dùng null)
+        IFileScanner scanner = new FileScanner();
+        ITreeBuilder treeBuilder = new TreeBuilder();
+        ITokenEstimator estimator = new TokenEstimator();
 
-        // Bản nháp IDumpWriter – sẽ được thay bằng bản thật ở giai đoạn xuất
-        IDumpWriter dumpWriter = new DumpWriterStub();
+        // 2. Tiêm chúng vào IPreviewProvider
+        IPreviewProvider previewProvider = new PreviewProvider(scanner, treeBuilder, estimator);
 
+        // 3. Khởi tạo IDumpWriter (Task 9A)
+        IDumpWriter dumpWriter = new DumpWriter();
+
+        // 4. Tạo ViewModel chính với đầy đủ dependency
         var mainViewModel = new MainViewModel(previewProvider, dumpWriter);
 
+        // 5. Gán DataContext cho MainWindow và hiển thị
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel
         };
 
-        // Ứng dụng tắt khi cửa sổ chính đóng
-        Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         mainWindow.Show();
-    }
-
-    /// <summary>
-    /// Bản nháp tạm thời cho IDumpWriter, chưa hỗ trợ xuất thực sự.
-    /// </summary>
-    private class DumpWriterStub : IDumpWriter
-    {
-        public System.Threading.Tasks.Task WriteAsync(DumpConfig config, System.Threading.CancellationToken ct)
-        {
-            // Tạm thời ném ngoại lệ – sẽ triển khai đầy đủ sau
-            throw new System.NotImplementedException();
-        }
     }
 }
