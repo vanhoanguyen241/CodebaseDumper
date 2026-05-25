@@ -61,7 +61,7 @@
                 Margin="2"/>
 
         <!-- Thanh tiến trình kết xuất -->
-        <ProgressBar Value="{Binding ExportProgress}"
+        <ProgressBar Value="{Binding ExportProgress, Mode=OneWay}"
                      Minimum="0" Maximum="100"
                      Width="150" Height="20"
                      Style="{StaticResource ProgressBarStyle}"
