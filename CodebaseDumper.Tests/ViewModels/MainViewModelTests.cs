@@ -143,37 +143,40 @@ public class MainViewModelTests
             _throwOnBuild = throwOnBuild;
         }
 
-        public Task<PreviewData> BuildAsync(DumpConfig config, CancellationToken ct)
+        public async Task<PreviewData> BuildAsync(DumpConfig config, CancellationToken ct)
         {
+            // Task.Yield() buộc yield thật sự — cho phép assert Scanning trước khi hoàn tất
+            await Task.Yield();
+
             if (_throwOnBuild)
                 throw new InvalidOperationException("Lỗi giả lập trong quá trình quét.");
 
-            var data = new PreviewData(
+            return new PreviewData(
                 AsciiTree: "cây giả",
                 Files: new List<FileEntry>(),
                 EstimatedTokens: 100,
-                TotalBytes: 1024
-            );
-            return Task.FromResult(data);
+                TotalBytes: 1024);
         }
     }
 
     private class FakeDumpWriter : IDumpWriter
     {
-        public Task<DumpResult> WriteAsync(
+        public async Task<DumpResult> WriteAsync(
             DumpConfig config,
             IReadOnlyList<FileEntry> files,
             string asciiTree,
             IProgress<DumpProgress>? progress,
             CancellationToken ct)
         {
-            var result = new DumpResult(
+            // Task.Yield() buộc yield thật sự — cho phép assert Exporting trước khi hoàn tất
+            await Task.Yield();
+
+            return new DumpResult(
                 OutputPath: config.OutputPath,
                 FileCount: files.Count,
                 EstimatedTokens: 0,
                 TotalBytes: 0,
                 Duration: TimeSpan.Zero);
-            return Task.FromResult(result);
         }
     }
 }
