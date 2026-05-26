@@ -160,5 +160,20 @@ public class MainViewModelTests
 
     private class FakeDumpWriter : IDumpWriter
     {
+        public Task<DumpResult> WriteAsync(
+            DumpConfig config,
+            IReadOnlyList<FileEntry> files,
+            string asciiTree,
+            IProgress<DumpProgress>? progress,
+            CancellationToken ct)
+        {
+            var result = new DumpResult(
+                OutputPath: config.OutputPath,
+                FileCount: files.Count,
+                EstimatedTokens: 0,
+                TotalBytes: 0,
+                Duration: TimeSpan.Zero);
+            return Task.FromResult(result);
+        }
     }
 }
