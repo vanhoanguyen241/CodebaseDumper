@@ -1,6 +1,8 @@
 ﻿// CodebaseDumper/ViewModels/MainViewModel.cs (cập nhật)
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows.Input;
 using CodebaseDumper.Engine;
 using CodebaseDumper.Models;
@@ -23,7 +25,7 @@ public class MainViewModel : INotifyPropertyChanged
     private PreviewData? _preview;
     private string? _errorMessage;
     private int _exportProgress;
-    private string? _outputPath; // ← thêm
+    private string? _outputPath;
 
     private CancellationTokenSource? _scanCts;
     private CancellationTokenSource? _exportCts;
@@ -42,6 +44,13 @@ public class MainViewModel : INotifyPropertyChanged
     /// Task này không bao giờ ném ngoại lệ.
     /// </summary>
     internal Task? CurrentExportTask => _exportCompletionSource?.Task;
+
+    /// <summary>
+    /// Danh sách glob pattern tên file cần loại trừ — observable để UI binding hai chiều.
+    /// Khởi tạo từ DumpConfig.ExcludeFiles default.
+    /// </summary>
+    public ObservableCollection<string> ExcludeFiles { get; } =
+        new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.ExcludeFiles);
 
     public MainViewModel(IPreviewProvider previewProvider, IDumpWriter dumpWriter)
     {
@@ -132,7 +141,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ICommand CancelCommand { get; }
 
     /// <summary>Kích hoạt quét thư mục và dựng dữ liệu xem trước.</summary>
-        private async void TriggerScan()
+    private async void TriggerScan()
     {
         _scanCts?.Cancel();
         _scanCts?.Dispose();
@@ -145,7 +154,7 @@ public class MainViewModel : INotifyPropertyChanged
         ErrorMessage = null;
         State = AppState.Scanning;
 
-        var config = new DumpConfig { RootPath = _rootPath };
+        var config = new DumpConfig { RootPath = _rootPath, ExcludeFiles = ExcludeFiles.ToList() };
 
         try
         {
@@ -182,7 +191,6 @@ public class MainViewModel : INotifyPropertyChanged
         _exportCts = new CancellationTokenSource();
         var ct = _exportCts.Token;
 
-        // ← thêm TCS, giống pattern của TriggerScan
         var tcs = new TaskCompletionSource();
         _exportCompletionSource = tcs;
 
@@ -199,7 +207,8 @@ public class MainViewModel : INotifyPropertyChanged
             var config = new DumpConfig
             {
                 RootPath = _rootPath,
-                OutputPath = outputPath
+                OutputPath = outputPath,
+                ExcludeFiles = ExcludeFiles.ToList()
             };
 
             var progressReporter = new Progress<DumpProgress>(p =>
@@ -233,7 +242,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
-            tcs.TrySetResult(); // ← thêm
+            tcs.TrySetResult();
         }
     }
 
