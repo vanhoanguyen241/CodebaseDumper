@@ -49,8 +49,17 @@ public class MainViewModel : INotifyPropertyChanged
     /// Danh sách glob pattern tên file cần loại trừ — observable để UI binding hai chiều.
     /// Khởi tạo từ DumpConfig.ExcludeFiles default.
     /// </summary>
+    // SAU — thêm 2 property bên dưới:
     public ObservableCollection<string> ExcludeFiles { get; } =
         new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.ExcludeFiles);
+
+    /// <summary>Danh sách glob pattern để bao gồm file — observable để UI binding hai chiều.</summary>
+    public ObservableCollection<string> IncludeGlobs { get; } =
+        new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.IncludeGlobs);
+
+    /// <summary>Danh sách tên thư mục cần loại trừ — observable để UI binding hai chiều.</summary>
+    public ObservableCollection<string> ExcludeDirs { get; } =
+        new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.ExcludeDirs);
 
     public MainViewModel(IPreviewProvider previewProvider, IDumpWriter dumpWriter)
     {
@@ -154,7 +163,13 @@ public class MainViewModel : INotifyPropertyChanged
         ErrorMessage = null;
         State = AppState.Scanning;
 
-        var config = new DumpConfig { RootPath = _rootPath, ExcludeFiles = ExcludeFiles.ToList() };
+        var config = new DumpConfig
+        {
+            RootPath = _rootPath,
+            IncludeGlobs = IncludeGlobs.ToList(),
+            ExcludeDirs = ExcludeDirs.ToList(),
+            ExcludeFiles = ExcludeFiles.ToList(),
+        };
 
         try
         {
@@ -208,7 +223,9 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 RootPath = _rootPath,
                 OutputPath = outputPath,
-                ExcludeFiles = ExcludeFiles.ToList()
+                IncludeGlobs = IncludeGlobs.ToList(),
+                ExcludeDirs = ExcludeDirs.ToList(),
+                ExcludeFiles = ExcludeFiles.ToList(),
             };
 
             var progressReporter = new Progress<DumpProgress>(p =>
