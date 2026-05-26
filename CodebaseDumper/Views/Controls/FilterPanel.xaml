@@ -6,11 +6,14 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:CodebaseDumper.Views.Controls"
              mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="400">
+             d:DesignHeight="600" d:DesignWidth="400">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
@@ -25,7 +28,7 @@
                 <Button Content="C#" Margin="2" Click="CSharp_Click"/>
                 <Button Content="Go" Margin="2" Click="Go_Click"/>
             </StackPanel>
-             <!--ChipListControl hiển thị danh sách glob--> 
+            <!--ChipListControl hiển thị danh sách glob-->
             <local:ChipListControl ItemsSource="{Binding IncludeGlobs, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"/>
         </StackPanel>
 
@@ -33,5 +36,19 @@
         <TextBlock Grid.Row="2" Text="Exclude directories" FontWeight="Bold" Margin="4,8,4,4"/>
         <local:ChipListControl Grid.Row="3" Margin="4,0"
                                ItemsSource="{Binding ExcludeDirs, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"/>
+
+        <!-- Separator ngăn cách section 2 và 3 -->
+        <Border Grid.Row="4" Height="1" Background="LightGray" Margin="4,8,4,0"/>
+
+        <!-- Phần 3: Loại trừ file -->
+        <TextBlock Grid.Row="5" Text="Loại trừ file" FontWeight="Bold" Margin="4,8,4,4"/>
+        <StackPanel Grid.Row="6" Margin="4,0">
+            <!-- Nút preset cho ExcludeFiles -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <Button Content="Generated" Margin="2" Click="Generated_Click"/>
+                <Button Content="Lock files" Margin="2" Click="LockFiles_Click"/>
+            </StackPanel>
+            <local:ChipListControl ItemsSource="{Binding ExcludeFiles}"/>
+        </StackPanel>
     </Grid>
 </UserControl>
