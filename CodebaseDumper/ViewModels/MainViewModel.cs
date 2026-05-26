@@ -1,5 +1,4 @@
-﻿// CodebaseDumper/ViewModels/MainViewModel.cs
-
+﻿// CodebaseDumper/ViewModels/MainViewModel.cs (cập nhật)
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -24,6 +23,7 @@ public class MainViewModel : INotifyPropertyChanged
     private PreviewData? _preview;
     private string? _errorMessage;
     private int _exportProgress;
+    private string? _outputPath; // ← thêm
 
     private CancellationTokenSource? _scanCts;
     private CancellationTokenSource? _exportCts;
@@ -105,6 +105,16 @@ public class MainViewModel : INotifyPropertyChanged
         private set { _exportProgress = value; OnPropertyChanged(); }
     }
 
+    /// <summary>
+    /// Đường dẫn tệp đầu ra sau khi kết xuất thành công.
+    /// Chỉ khác null khi State == Done.
+    /// </summary>
+    public string? OutputPath
+    {
+        get => _outputPath;
+        private set { _outputPath = value; OnPropertyChanged(); }
+    }
+
     /// <summary>Lệnh quét (cũng được tự động gọi khi RootPath thay đổi).</summary>
     public ICommand ScanCommand { get; }
 
@@ -115,37 +125,33 @@ public class MainViewModel : INotifyPropertyChanged
     public ICommand CancelCommand { get; }
 
     /// <summary>Kích hoạt quét thư mục và dựng dữ liệu xem trước.</summary>
-    private async void TriggerScan()
+        private async void TriggerScan()
     {
-        // Huỷ lần quét trước đó nếu có
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         _scanCts = new CancellationTokenSource();
         var ct = _scanCts.Token;
 
-        // Tạo một TaskCompletionSource để báo hiệu khi quá trình quét hoàn tất
         var tcs = new TaskCompletionSource();
         _scanCompletionSource = tcs;
 
-        // Reset trạng thái lỗi trước khi bắt đầu
         ErrorMessage = null;
         State = AppState.Scanning;
 
         var config = new DumpConfig { RootPath = _rootPath };
-        var scanTask = Task.Run(async () =>
-        {
-            var data = await _previewProvider.BuildAsync(config, ct);
-            Preview = data;
-            State = AppState.Previewed;
-        }, ct);
 
         try
         {
-            await scanTask;
+            // await trực tiếp — giữ nguyên WPF SynchronizationContext
+            // BuildAsync tự xử lý threading nội bộ nếu cần CPU-bound work
+            var data = await _previewProvider.BuildAsync(config, ct);
+
+            // Trở về UI thread sau await → gán bình thường
+            Preview = data;
+            State = AppState.Previewed;
         }
         catch (OperationCanceledException)
         {
-            // Người dùng huỷ hoặc đường dẫn thay đổi → quay về Idle
             State = AppState.Idle;
         }
         catch (Exception ex)
@@ -155,7 +161,6 @@ public class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
-            // Báo hiệu hoàn tất (không ném ngoại lệ ra ngoài)
             tcs.TrySetResult();
         }
     }
@@ -173,6 +178,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         State = AppState.Exporting;
         ExportProgress = 0;
+        OutputPath = null; // reset đường dẫn cũ
 
         try
         {
@@ -183,6 +189,11 @@ public class MainViewModel : INotifyPropertyChanged
                 await Task.Delay(50, ct); // giả lập công việc
                 ExportProgress = i;
             }
+
+            // Gán đường dẫn giả lập cho ActionBar mở Explorer (chưa có file thật)
+            OutputPath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                "CodebaseDump_Output.txt");
 
             State = AppState.Done;
             ExportProgress = 100;
