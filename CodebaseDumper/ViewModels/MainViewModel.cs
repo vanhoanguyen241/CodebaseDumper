@@ -165,12 +165,11 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Thực hiện kết xuất (dùng bản nháp IDumpWriter).</summary>
+    /// <summary>Thực hiện kết xuất thực tế qua IDumpWriter.</summary>
     private async void ExportAsync()
     {
-        if (State != AppState.Previewed) return;
+        if (State != AppState.Previewed || Preview is null) return;
 
-        // Huỷ tác vụ kết xuất trước đó (nếu có)
         _exportCts?.Cancel();
         _exportCts?.Dispose();
         _exportCts = new CancellationTokenSource();
@@ -178,29 +177,42 @@ public class MainViewModel : INotifyPropertyChanged
 
         State = AppState.Exporting;
         ExportProgress = 0;
-        OutputPath = null; // reset đường dẫn cũ
+        OutputPath = null;
 
         try
         {
-            // Mô phỏng tiến trình kết xuất (sẽ thay bằng IDumpWriter thực sau)
-            for (int i = 0; i <= 100; i += 10)
+            // Đặt file đầu ra cạnh thư mục gốc, tên có timestamp
+            var outputPath = System.IO.Path.Combine(
+                _rootPath,
+                $"CodebaseDump_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+
+            var config = new DumpConfig
             {
-                ct.ThrowIfCancellationRequested();
-                await Task.Delay(50, ct); // giả lập công việc
-                ExportProgress = i;
-            }
+                RootPath = _rootPath,
+                OutputPath = outputPath
+            };
 
-            // Gán đường dẫn giả lập cho ActionBar mở Explorer (chưa có file thật)
-            OutputPath = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                "CodebaseDump_Output.txt");
+            // Progress reporter marshal về UI thread tự động qua Progress<T>
+            var progressReporter = new Progress<DumpProgress>(p =>
+            {
+                ExportProgress = p.TotalFiles > 0
+                    ? (int)((double)p.ProcessedFiles / p.TotalFiles * 100)
+                    : 0;
+            });
 
-            State = AppState.Done;
+            var result = await _dumpWriter.WriteAsync(
+                config,
+                Preview.Files,      // ← thay bằng tên property thật của PreviewData
+                Preview.AsciiTree,  // ← thay bằng tên property thật của PreviewData
+                progressReporter,
+                ct);
+
+            OutputPath = result.OutputPath;  // path thật từ DumpWriter
             ExportProgress = 100;
+            State = AppState.Done;
         }
         catch (OperationCanceledException)
         {
-            // Huỷ → trở về trạng thái Previewed
             State = AppState.Previewed;
             ExportProgress = 0;
         }
