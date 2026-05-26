@@ -1,14 +1,14 @@
 ﻿# AGENTS.md — CodebaseDumper
 
 ## Tech stack
-- C# 12 · .NET 8 · WPF (MVVM, no code-behind logic)
+- C# 13 · .NET 9 · WPF (MVVM, no code-behind logic)
 - xUnit for tests · System.IO.Abstractions.TestingHelpers for FS mocking
 - No NuGet dependencies beyond the above without explicit approval
 
 ## Commands
 - Build:   dotnet build
 - Test:    dotnet test
-- Publish: dotnet publish CodebaseDumper -r win-x64 -p:PublishSingleFile=true --self-contained
+- Publish: dotnet publish CodebaseDumper -f net9.0-windows -r win-x64 -p:PublishSingleFile=true --self-contained
 
 ## Code conventions
 - Interface-first: define the interface before the implementation
