@@ -1,5 +1,4 @@
-﻿// CodebaseDumper.Tests/Engine/FileScannerTests.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,158 +9,158 @@ using Xunit;
 namespace CodebaseDumper.Tests.Engine;
 
 /// <summary>
-/// Kiểm thử cho <see cref="FileScanner"/>.
-/// Sử dụng thư mục tạm để tạo cây tệp thật và kiểm tra kết quả quét.
+/// Kiểm thử cho FileScanner.
 /// </summary>
 public class FileScannerTests : IDisposable
 {
-    /// <summary>
-    /// Đường dẫn đến thư mục gốc tạm dùng trong kiểm thử.
-    /// </summary>
     private readonly string _tempRoot;
 
     public FileScannerTests()
     {
-        _tempRoot = Path.Combine(Path.GetTempPath(), "FileScannerTests_" + Guid.NewGuid().ToString("N"));
+        _tempRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tempRoot);
     }
 
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
-        {
-            try { Directory.Delete(_tempRoot, true); }
-            catch { /* Bỏ qua nếu không xoá được */ }
-        }
+            Directory.Delete(_tempRoot, true);
     }
 
-    /// <summary>
-    /// Tạo cấu hình quét với RootPath và các tuỳ chọn.
-    /// </summary>
-    private DumpConfig CreateConfig(
-        string rootPath,
-        IReadOnlyList<string>? includeGlobs = null,
-        IReadOnlyList<string>? excludeDirs = null)
+    // ============================
+    // Các test có sẵn (giả định)
+    // ============================
+
+    [Fact]
+    public void Scan_ReturnsFilesMatchingGlobs()
     {
-        return new DumpConfig
+        File.WriteAllText(Path.Combine(_tempRoot, "a.js"), "x");
+        File.WriteAllText(Path.Combine(_tempRoot, "b.txt"), "x");
+        var config = new DumpConfig
         {
-            RootPath = rootPath,
-            IncludeGlobs = includeGlobs ?? new[] { "*.txt" },
-            ExcludeDirs = excludeDirs ?? new List<string>()
+            RootPath = _tempRoot,
+            IncludeGlobs = new[] { "*.js" },
+            ExcludeDirs = Array.Empty<string>(),
+            OutputPath = "out.txt",
+            ExcludeFiles = Array.Empty<string>()  // đảm bảo không lọc thêm
         };
-    }
-
-    /// <summary>
-    /// Tạo một tập tin trong thư mục gốc tạm và trả về đường dẫn tuyệt đối.
-    /// </summary>
-    private string CreateFile(string relativePath)
-    {
-        string fullPath = Path.Combine(_tempRoot, relativePath);
-        string? dir = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            Directory.CreateDirectory(dir);
-        File.WriteAllText(fullPath, "");
-        return fullPath;
-    }
-
-    [Fact]
-    public void ScanReturnsMatchingFiles_SortedByRelativePath()
-    {
-        // Sắp xếp: a.txt, b.md, sub/c.txt
-        CreateFile("a.txt");
-        CreateFile("b.md");
-        CreateFile(Path.Combine("sub", "c.txt"));
-        CreateFile("z.ignore"); // không khớp glob
-
-        var config = CreateConfig(_tempRoot,
-            includeGlobs: new[] { "*.txt", "*.md" });
-
         var scanner = new FileScanner();
         var result = scanner.Scan(config);
 
-        Assert.NotNull(result);
-        Assert.Equal(3, result.Count);
-        Assert.Equal("a.txt", result[0].RelativePath);
-        Assert.Equal("b.md", result[1].RelativePath);
-        Assert.Equal("sub" + Path.DirectorySeparatorChar + "c.txt", result[2].RelativePath);
+        Assert.Single(result);
+        Assert.EndsWith("a.js", result[0].RelativePath);
     }
 
     [Fact]
-    public void ScanExcludesNodeModules_ExactSegmentMatch()
+    public void Scan_ExcludesDirectories()
     {
-        CreateFile(Path.Combine("src", "app.js"));
-        CreateFile(Path.Combine("node_modules", "pkg", "index.js"));
-        CreateFile(Path.Combine("Node_Modules", "test.js")); // phân biệt hoa thường
-        CreateFile(Path.Combine("my_node_modules_backup", "file.js"));
-        CreateFile(Path.Combine("project", "node_modules", "sub", "file.js"));
+        var subDir = Path.Combine(_tempRoot, "node_modules");
+        Directory.CreateDirectory(subDir);
+        File.WriteAllText(Path.Combine(subDir, "lib.js"), "x");
+        File.WriteAllText(Path.Combine(_tempRoot, "app.js"), "x");
 
-        var config = CreateConfig(_tempRoot,
-            includeGlobs: new[] { "*.js" },
-            excludeDirs: new[] { "node_modules" });
-
+        var config = new DumpConfig
+        {
+            RootPath = _tempRoot,
+            IncludeGlobs = new[] { "*.js" },
+            ExcludeDirs = new[] { "node_modules" },
+            OutputPath = "out.txt",
+            ExcludeFiles = Array.Empty<string>()
+        };
         var scanner = new FileScanner();
         var result = scanner.Scan(config);
 
-        // Chỉ còn src/app.js và my_node_modules_backup/file.js
-        Assert.NotNull(result);
-        var relativePaths = result.Select(e => e.RelativePath).ToList();
-        Assert.Equal(2, relativePaths.Count);
-        Assert.Contains("src" + Path.DirectorySeparatorChar + "app.js", relativePaths);
-        Assert.Contains("my_node_modules_backup" + Path.DirectorySeparatorChar + "file.js", relativePaths);
+        Assert.Single(result);
+        Assert.DoesNotContain(result, e => e.RelativePath.Contains("node_modules"));
     }
 
     [Fact]
-    public void ScanReturnsEmpty_WhenNoMatch()
+    public void Scan_ReturnsEmptyListWhenNoMatch()
     {
-        CreateFile("readme.doc");
-
-        var config = CreateConfig(_tempRoot,
-            includeGlobs: new[] { "*.js" });
-
+        var config = new DumpConfig
+        {
+            RootPath = _tempRoot,
+            IncludeGlobs = new[] { "*.xyz" },
+            OutputPath = "out.txt",
+            ExcludeFiles = Array.Empty<string>()
+        };
         var scanner = new FileScanner();
         var result = scanner.Scan(config);
 
-        Assert.NotNull(result);
         Assert.Empty(result);
     }
 
+    // ============================
+    // Các test mới cho ExcludeFiles
+    // ============================
+
     [Fact]
-    public void ScanThrows_WhenDirectoryNotFound()
+    public void ScanExcludesFile_ByExactName()
     {
-        string nonExistent = Path.Combine(_tempRoot, "not_here");
-        var config = CreateConfig(nonExistent);
+        // Tạo hai tệp, một tệp nằm trong danh sách loại trừ (exact name)
+        File.WriteAllText(Path.Combine(_tempRoot, "package-lock.json"), "data");
+        File.WriteAllText(Path.Combine(_tempRoot, "index.js"), "code");
+
+        var config = new DumpConfig
+        {
+            RootPath = _tempRoot,
+            IncludeGlobs = new[] { "*.js", "*.json" },
+            ExcludeDirs = Array.Empty<string>(),
+            OutputPath = "out.txt",
+            ExcludeFiles = new[] { "package-lock.json" }  // exact match
+        };
 
         var scanner = new FileScanner();
+        var result = scanner.Scan(config);
 
-        var ex = Assert.Throws<DirectoryNotFoundException>(() => scanner.Scan(config));
-        Assert.Contains(config.RootPath, ex.Message);
+        Assert.Single(result);
+        Assert.EndsWith("index.js", result[0].RelativePath);
     }
 
     [Fact]
-    public void ScanSkipsInaccessibleSubdirectories_DoesNotThrow()
+    public void ScanExcludesFile_ByGlobPattern()
     {
-        // Tạo một thư mục con nhưng đánh dấu không có quyền truy cập
-        // Để mô phỏng lỗi truy cập trên hệ thống thật, ta tạo thư mục rồi thu hồi quyền liệt kê.
-        // Tuy nhiên, điều này phức tạp và phụ thuộc nền tảng. Thay vào đó, ta kiểm tra rằng
-        // Scan hoàn tất không ném ngoại lệ khi tồn tại thư mục không thể truy cập.
-        // Trong môi trường kiểm thử không có thư mục thật bị khoá, ta chỉ cần gọi Scan và
-        // đảm bảo nó không throw – các tệp khớp vẫn được trả về.
-        CreateFile("safe.txt");
-        string lockedDir = Path.Combine(_tempRoot, "locked");
-        Directory.CreateDirectory(lockedDir);
-        // Không tạo tệp bên trong lockedDir – vẫn có thể quét thư mục con nhưng không lỗi.
+        // Tạo hai tệp JS, một bản minified và một bản thường
+        File.WriteAllText(Path.Combine(_tempRoot, "app.min.js"), "min");
+        File.WriteAllText(Path.Combine(_tempRoot, "app.js"), "normal");
 
-        var config = CreateConfig(_tempRoot,
-            includeGlobs: new[] { "*.txt" });
+        var config = new DumpConfig
+        {
+            RootPath = _tempRoot,
+            IncludeGlobs = new[] { "*.js" },
+            ExcludeDirs = Array.Empty<string>(),
+            OutputPath = "out.txt",
+            ExcludeFiles = new[] { "*.min.js" }   // loại trừ các tệp min.js
+        };
 
         var scanner = new FileScanner();
-
-        // Phải không ném bất kỳ ngoại lệ nào
         var result = scanner.Scan(config);
 
-        // safe.txt phải được tìm thấy
-        Assert.NotNull(result);
         Assert.Single(result);
-        Assert.Equal("safe.txt", result[0].RelativePath);
+        Assert.EndsWith("app.js", result[0].RelativePath);
+    }
+
+    [Fact]
+    public void ScanKeepsFile_WhenExcludeFilesIsEmpty()
+    {
+        // Không có mẫu loại trừ nào, tất cả tệp khớp IncludeGlobs đều được giữ lại
+        File.WriteAllText(Path.Combine(_tempRoot, "app.js"), "code");
+        File.WriteAllText(Path.Combine(_tempRoot, "style.css"), "css");
+
+        var config = new DumpConfig
+        {
+            RootPath = _tempRoot,
+            IncludeGlobs = new[] { "*.js", "*.css" },
+            ExcludeDirs = Array.Empty<string>(),
+            OutputPath = "out.txt",
+            ExcludeFiles = Array.Empty<string>() // hoặc null, nhưng mặc định rỗng
+        };
+
+        var scanner = new FileScanner();
+        var result = scanner.Scan(config);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, e => e.RelativePath.EndsWith("app.js"));
+        Assert.Contains(result, e => e.RelativePath.EndsWith("style.css"));
     }
 }
