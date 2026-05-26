@@ -248,4 +248,37 @@ public class MainViewModelTests
             Assert.Contains(expected, actualExcludeFiles);
         }
     }
+    // CapturingPreviewProvider: ghi lại DumpConfig được truyền vào BuildAsync
+    private class CapturingPreviewProvider : IPreviewProvider
+    {
+        private readonly List<DumpConfig> _captured;
+        public CapturingPreviewProvider(List<DumpConfig> captured) => _captured = captured;
+
+        public async Task<PreviewData> BuildAsync(DumpConfig config, CancellationToken ct)
+        {
+            await Task.Yield();
+            _captured.Add(config);
+            return new PreviewData("", Array.Empty<FileEntry>(), 0, 0L);
+        }
+    }
+
+    [Fact]
+    public async Task TriggerScan_PassesExcludeDirsAndExcludeFilesToProvider()
+    {
+        // Kiểm tra VM wire đúng ExcludeDirs và ExcludeFiles vào DumpConfig
+        var capturedConfigs = new List<DumpConfig>();
+        var vm = new MainViewModel(new CapturingPreviewProvider(capturedConfigs), new StubDumpWriter());
+
+        vm.ExcludeDirs.Clear();
+        vm.ExcludeDirs.Add("custom_dir");
+        vm.ExcludeFiles.Clear();
+        vm.ExcludeFiles.Add("*.min.js");
+
+        vm.RootPath = "C:\\test";
+        await WaitForScanAsync(vm);
+
+        Assert.Single(capturedConfigs);
+        Assert.Contains("custom_dir", capturedConfigs[0].ExcludeDirs);
+        Assert.Contains("*.min.js", capturedConfigs[0].ExcludeFiles);
+    }
 }
