@@ -28,6 +28,7 @@ public class MainViewModel : INotifyPropertyChanged
     private CancellationTokenSource? _scanCts;
     private CancellationTokenSource? _exportCts;
     private TaskCompletionSource? _scanCompletionSource;
+    private TaskCompletionSource? _exportCompletionSource;
 
     /// <summary>
     /// Tác vụ quét hiện tại – chỉ dùng cho kiểm thử để chờ hoàn tất quét.
@@ -35,6 +36,12 @@ public class MainViewModel : INotifyPropertyChanged
     /// Task này không bao giờ ném ngoại lệ.
     /// </summary>
     internal Task? CurrentScanTask => _scanCompletionSource?.Task;
+
+    /// <summary>
+    /// Tác vụ kết xuất hiện tại – chỉ dùng cho kiểm thử để chờ hoàn tất kết xuất.
+    /// Task này không bao giờ ném ngoại lệ.
+    /// </summary>
+    internal Task? CurrentExportTask => _exportCompletionSource?.Task;
 
     public MainViewModel(IPreviewProvider previewProvider, IDumpWriter dumpWriter)
     {
@@ -175,13 +182,16 @@ public class MainViewModel : INotifyPropertyChanged
         _exportCts = new CancellationTokenSource();
         var ct = _exportCts.Token;
 
+        // ← thêm TCS, giống pattern của TriggerScan
+        var tcs = new TaskCompletionSource();
+        _exportCompletionSource = tcs;
+
         State = AppState.Exporting;
         ExportProgress = 0;
         OutputPath = null;
 
         try
         {
-            // Đặt file đầu ra cạnh thư mục gốc, tên có timestamp
             var outputPath = System.IO.Path.Combine(
                 _rootPath,
                 $"CodebaseDump_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
@@ -192,7 +202,6 @@ public class MainViewModel : INotifyPropertyChanged
                 OutputPath = outputPath
             };
 
-            // Progress reporter marshal về UI thread tự động qua Progress<T>
             var progressReporter = new Progress<DumpProgress>(p =>
             {
                 ExportProgress = p.TotalFiles > 0
@@ -202,12 +211,12 @@ public class MainViewModel : INotifyPropertyChanged
 
             var result = await _dumpWriter.WriteAsync(
                 config,
-                Preview.Files,      // ← thay bằng tên property thật của PreviewData
-                Preview.AsciiTree,  // ← thay bằng tên property thật của PreviewData
+                Preview.Files,
+                Preview.AsciiTree,
                 progressReporter,
                 ct);
 
-            OutputPath = result.OutputPath;  // path thật từ DumpWriter
+            OutputPath = result.OutputPath;
             ExportProgress = 100;
             State = AppState.Done;
         }
@@ -221,6 +230,10 @@ public class MainViewModel : INotifyPropertyChanged
             ErrorMessage = ex.Message;
             State = AppState.Error;
             ExportProgress = 0;
+        }
+        finally
+        {
+            tcs.TrySetResult(); // ← thêm
         }
     }
 

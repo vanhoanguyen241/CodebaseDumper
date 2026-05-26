@@ -68,8 +68,9 @@ public class MainViewModelTests
 
         // Huỷ kết xuất
         vm.CancelCommand.Execute(null);
-        // Chờ một chút để quá trình huỷ hoàn tất (sẽ quay về Previewed)
-        await Task.Delay(200);
+        // Đợi task kết xuất hoàn thành việc hủy (sẽ quay về Previewed)
+        await WaitForExportAsync(vm);
+
         Assert.Equal(AppState.Previewed, vm.State);
         Assert.False(vm.CancelCommand.CanExecute(null));
     }
@@ -132,6 +133,20 @@ public class MainViewModelTests
         }
     }
 
+    private static async Task WaitForExportAsync(MainViewModel vm)
+    {
+        var exportTask = vm.CurrentExportTask;
+        if (exportTask != null)
+        {
+            await exportTask;
+        }
+        else
+        {
+            // fallback an toàn
+            await Task.Delay(500);
+        }
+    }
+
     // ---------- fakes ----------
 
     private class FakePreviewProvider : IPreviewProvider
@@ -168,8 +183,12 @@ public class MainViewModelTests
             IProgress<DumpProgress>? progress,
             CancellationToken ct)
         {
-            // Task.Yield() buộc yield thật sự — cho phép assert Exporting trước khi hoàn tất
-            await Task.Yield();
+            // CÂU GIỜ BẰNG Task.Delay KÈM THEO TOKEN (ct)
+            // Thay vì dùng Task.Yield() quá nhanh, ta bắt nó đợi 200ms.
+            // Nếu trong lúc đợi mà test gọi CancelCommand, Task.Delay sẽ NGAY LẬP TỨC
+            // ném ra lỗi TaskCanceledException (kế thừa từ OperationCanceledException).
+            // Nhờ đó ViewModel bắt được lỗi Hủy và chuyển về Previewed.
+            await Task.Delay(200, ct);
 
             return new DumpResult(
                 OutputPath: config.OutputPath,
