@@ -41,16 +41,11 @@ public class PreviewProvider : IPreviewProvider
         try
         {
             // Quét danh sách tệp – chạy ngoài UI thread
-            IReadOnlyList<FileEntry> files;
-            try
-            {
-                files = await Task.Run(() => _scanner.Scan(config), ct).ConfigureAwait(false);
-            }
-            catch (DirectoryNotFoundException)
-            {
-                // Lan truyền ngoại lệ gốc, không nuốt
-                throw;
-            }
+            IReadOnlyList<FileEntry> files = await Task.Run(() => _scanner.Scan(config), ct)
+                                                       .ConfigureAwait(false);
+
+            // Phòng thủ: đảm bảo files không null, thay bằng danh sách rỗng nếu cần
+            files ??= Array.Empty<FileEntry>();
 
             // Xây cây thư mục – chạy ngoài UI thread
             var tree = await Task.Run(() => _treeBuilder.Build(files, config.RootPath), ct)
