@@ -1,5 +1,4 @@
-﻿// CodebaseDumper/Models/DumpConfig.cs
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 
 namespace CodebaseDumper.Models;
@@ -51,4 +50,15 @@ public record DumpConfig
     /// Bảng mã ký tự cho tệp đầu ra.
     /// </summary>
     public Encoding OutputEncoding { get; init; } = Encoding.UTF8;
+
+    /// <summary>
+    /// Danh sách mẫu glob tên tệp cần loại trừ (chỉ so với tên tệp, không gồm đường dẫn).
+    /// Áp dụng sau khi tệp đã vượt qua IncludeGlobs và ExcludeDirs.
+    /// Mặc định loại trừ các tệp được sinh tự động, lock file và source map phổ biến.
+    /// </summary>
+    public IReadOnlyList<string> ExcludeFiles { get; init; } = new[]
+    {
+        "*.min.js", "*.min.css", "package-lock.json", "yarn.lock",
+        "*.lock", "*.map", "*.snap", "*.d.ts"
+    };
 }
