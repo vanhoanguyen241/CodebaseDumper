@@ -1,8 +1,8 @@
-﻿// CodebaseDumper/Engine/FileScanner.cs
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using CodebaseDumper.Models;
 
 namespace CodebaseDumper.Engine;
@@ -81,6 +81,12 @@ public class FileScanner : IFileScanner
                 SizeBytes: size));
         }
 
+        // Lọc file theo danh sách ExcludeFiles glob patterns (chỉ so với tên file)
+        entries = entries
+            .Where(entry => !config.ExcludeFiles.Any(glob =>
+                TenFileKhopGlob(Path.GetFileName(entry.AbsolutePath), glob)))
+            .ToList();
+
         // Sắp xếp tăng dần theo RelativePath (so sánh không phân biệt hoa thường)
         entries.Sort((a, b) =>
             string.Compare(a.RelativePath, b.RelativePath, StringComparison.OrdinalIgnoreCase));
@@ -113,5 +119,22 @@ public class FileScanner : IFileScanner
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Kiểm tra tên file có khớp với mẫu glob hay không.
+    /// Hỗ trợ ký tự đại diện: * (bất kỳ chuỗi) và ? (một ký tự).
+    /// So sánh không phân biệt hoa thường.
+    /// </summary>
+    /// <param name="tenFile">Tên file cần kiểm tra (ví dụ: "app.min.js").</param>
+    /// <param name="glob">Mẫu glob (ví dụ: "*.min.js").</param>
+    /// <returns>true nếu tên file khớp với mẫu.</returns>
+    private static bool TenFileKhopGlob(string tenFile, string glob)
+    {
+        // Chuyển glob → regex: escape toàn bộ, thay \* thành .* và \? thành .
+        var mauRegex = "^" + Regex.Escape(glob)
+                               .Replace(@"\*", ".*")
+                               .Replace(@"\?", ".") + "$";
+        return Regex.IsMatch(tenFile, mauRegex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 }

@@ -5,6 +5,9 @@ using System.Windows.Input;
 using CodebaseDumper.Engine;
 using CodebaseDumper.Models;
 using CodebaseDumper.ViewModels;
+using System.Collections.ObjectModel;
+using System.Linq;
+using Xunit;
 
 namespace CodebaseDumper.Tests.ViewModels;
 
@@ -68,8 +71,9 @@ public class MainViewModelTests
 
         // Huỷ kết xuất
         vm.CancelCommand.Execute(null);
-        // Chờ một chút để quá trình huỷ hoàn tất (sẽ quay về Previewed)
-        await Task.Delay(200);
+        // Đợi task kết xuất hoàn thành việc hủy (sẽ quay về Previewed)
+        await WaitForExportAsync(vm);
+
         Assert.Equal(AppState.Previewed, vm.State);
         Assert.False(vm.CancelCommand.CanExecute(null));
     }
@@ -132,6 +136,20 @@ public class MainViewModelTests
         }
     }
 
+    private static async Task WaitForExportAsync(MainViewModel vm)
+    {
+        var exportTask = vm.CurrentExportTask;
+        if (exportTask != null)
+        {
+            await exportTask;
+        }
+        else
+        {
+            // fallback an toàn
+            await Task.Delay(500);
+        }
+    }
+
     // ---------- fakes ----------
 
     private class FakePreviewProvider : IPreviewProvider
@@ -143,22 +161,124 @@ public class MainViewModelTests
             _throwOnBuild = throwOnBuild;
         }
 
-        public Task<PreviewData> BuildAsync(DumpConfig config, CancellationToken ct)
+        public async Task<PreviewData> BuildAsync(DumpConfig config, CancellationToken ct)
         {
+            // Task.Yield() buộc yield thật sự — cho phép assert Scanning trước khi hoàn tất
+            await Task.Yield();
+
             if (_throwOnBuild)
                 throw new InvalidOperationException("Lỗi giả lập trong quá trình quét.");
 
-            var data = new PreviewData(
+            return new PreviewData(
                 AsciiTree: "cây giả",
                 Files: new List<FileEntry>(),
                 EstimatedTokens: 100,
-                TotalBytes: 1024
-            );
-            return Task.FromResult(data);
+                TotalBytes: 1024);
         }
     }
 
     private class FakeDumpWriter : IDumpWriter
     {
+        public async Task<DumpResult> WriteAsync(
+            DumpConfig config,
+            IReadOnlyList<FileEntry> files,
+            string asciiTree,
+            IProgress<DumpProgress>? progress,
+            CancellationToken ct)
+        {
+            // CÂU GIỜ BẰNG Task.Delay KÈM THEO TOKEN (ct)
+            // Thay vì dùng Task.Yield() quá nhanh, ta bắt nó đợi 200ms.
+            // Nếu trong lúc đợi mà test gọi CancelCommand, Task.Delay sẽ NGAY LẬP TỨC
+            // ném ra lỗi TaskCanceledException (kế thừa từ OperationCanceledException).
+            // Nhờ đó ViewModel bắt được lỗi Hủy và chuyển về Previewed.
+            await Task.Delay(200, ct);
+
+            return new DumpResult(
+                OutputPath: config.OutputPath,
+                FileCount: files.Count,
+                EstimatedTokens: 0,
+                TotalBytes: 0,
+                Duration: TimeSpan.Zero);
+        }
+    }
+    // Stub cho IPreviewProvider (có thể dùng chung cho các test khác)
+    private class StubPreviewProvider : IPreviewProvider
+    {
+        public System.Threading.Tasks.Task<PreviewData> BuildAsync(DumpConfig config, System.Threading.CancellationToken ct)
+        {
+            return System.Threading.Tasks.Task.FromResult(
+                new PreviewData("", System.Array.Empty<FileEntry>(), 0, 0L));
+        }
+    }
+
+    // Stub cho IDumpWriter
+    private class StubDumpWriter : IDumpWriter
+    {
+        public System.Threading.Tasks.Task<DumpResult> WriteAsync(
+            DumpConfig config,
+            System.Collections.Generic.IReadOnlyList<FileEntry> files,
+            string asciiTree,
+            IProgress<DumpProgress> progress,
+            System.Threading.CancellationToken ct)
+        {
+            return System.Threading.Tasks.Task.FromResult(
+                new DumpResult(config.OutputPath!, 0, 0, 0L, System.TimeSpan.Zero));
+        }
+    }
+
+    /// <summary>
+    /// Kiểm tra ExcludeFiles mặc định khớp với DumpConfig.ExcludeFiles mặc định.
+    /// </summary>
+    [Fact]
+    public void ExcludeFiles_DefaultValues_MatchDumpConfigDefaults()
+    {
+        // Arrange
+        var vm = new MainViewModel(new StubPreviewProvider(), new StubDumpWriter());
+        var defaultConfig = new DumpConfig { RootPath = string.Empty };
+        var expectedDefaults = defaultConfig.ExcludeFiles;
+
+        // Act
+        var actualExcludeFiles = vm.ExcludeFiles;
+
+        // Assert
+        Assert.NotNull(actualExcludeFiles);
+        Assert.Equal(expectedDefaults.Count, actualExcludeFiles.Count);
+        foreach (var expected in expectedDefaults)
+        {
+            Assert.Contains(expected, actualExcludeFiles);
+        }
+    }
+    // CapturingPreviewProvider: ghi lại DumpConfig được truyền vào BuildAsync
+    private class CapturingPreviewProvider : IPreviewProvider
+    {
+        private readonly List<DumpConfig> _captured;
+        public CapturingPreviewProvider(List<DumpConfig> captured) => _captured = captured;
+
+        public async Task<PreviewData> BuildAsync(DumpConfig config, CancellationToken ct)
+        {
+            await Task.Yield();
+            _captured.Add(config);
+            return new PreviewData("", Array.Empty<FileEntry>(), 0, 0L);
+        }
+    }
+
+    [Fact]
+    public async Task TriggerScan_PassesExcludeDirsAndExcludeFilesToProvider()
+    {
+        // Kiểm tra VM wire đúng ExcludeDirs và ExcludeFiles vào DumpConfig
+        var capturedConfigs = new List<DumpConfig>();
+        var vm = new MainViewModel(new CapturingPreviewProvider(capturedConfigs), new StubDumpWriter());
+
+        vm.ExcludeDirs.Clear();
+        vm.ExcludeDirs.Add("custom_dir");
+        vm.ExcludeFiles.Clear();
+        vm.ExcludeFiles.Add("*.min.js");
+
+        vm.RootPath = "C:\\test";
+        await WaitForScanAsync(vm);
+
+        Assert.Single(capturedConfigs);
+        Assert.Contains("custom_dir", capturedConfigs[0].ExcludeDirs);
+        Assert.Contains("*.min.js", capturedConfigs[0].ExcludeFiles);
     }
 }

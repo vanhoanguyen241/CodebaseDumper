@@ -1,7 +1,8 @@
-﻿// CodebaseDumper/ViewModels/MainViewModel.cs
-
+﻿// CodebaseDumper/ViewModels/MainViewModel.cs (cập nhật)
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows.Input;
 using CodebaseDumper.Engine;
 using CodebaseDumper.Models;
@@ -24,10 +25,12 @@ public class MainViewModel : INotifyPropertyChanged
     private PreviewData? _preview;
     private string? _errorMessage;
     private int _exportProgress;
+    private string? _outputPath;
 
     private CancellationTokenSource? _scanCts;
     private CancellationTokenSource? _exportCts;
     private TaskCompletionSource? _scanCompletionSource;
+    private TaskCompletionSource? _exportCompletionSource;
 
     /// <summary>
     /// Tác vụ quét hiện tại – chỉ dùng cho kiểm thử để chờ hoàn tất quét.
@@ -35,6 +38,28 @@ public class MainViewModel : INotifyPropertyChanged
     /// Task này không bao giờ ném ngoại lệ.
     /// </summary>
     internal Task? CurrentScanTask => _scanCompletionSource?.Task;
+
+    /// <summary>
+    /// Tác vụ kết xuất hiện tại – chỉ dùng cho kiểm thử để chờ hoàn tất kết xuất.
+    /// Task này không bao giờ ném ngoại lệ.
+    /// </summary>
+    internal Task? CurrentExportTask => _exportCompletionSource?.Task;
+
+    /// <summary>
+    /// Danh sách glob pattern tên file cần loại trừ — observable để UI binding hai chiều.
+    /// Khởi tạo từ DumpConfig.ExcludeFiles default.
+    /// </summary>
+    // SAU — thêm 2 property bên dưới:
+    public ObservableCollection<string> ExcludeFiles { get; } =
+        new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.ExcludeFiles);
+
+    /// <summary>Danh sách glob pattern để bao gồm file — observable để UI binding hai chiều.</summary>
+    public ObservableCollection<string> IncludeGlobs { get; } =
+        new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.IncludeGlobs);
+
+    /// <summary>Danh sách tên thư mục cần loại trừ — observable để UI binding hai chiều.</summary>
+    public ObservableCollection<string> ExcludeDirs { get; } =
+        new ObservableCollection<string>(new DumpConfig { RootPath = string.Empty }.ExcludeDirs);
 
     public MainViewModel(IPreviewProvider previewProvider, IDumpWriter dumpWriter)
     {
@@ -105,6 +130,16 @@ public class MainViewModel : INotifyPropertyChanged
         private set { _exportProgress = value; OnPropertyChanged(); }
     }
 
+    /// <summary>
+    /// Đường dẫn tệp đầu ra sau khi kết xuất thành công.
+    /// Chỉ khác null khi State == Done.
+    /// </summary>
+    public string? OutputPath
+    {
+        get => _outputPath;
+        private set { _outputPath = value; OnPropertyChanged(); }
+    }
+
     /// <summary>Lệnh quét (cũng được tự động gọi khi RootPath thay đổi).</summary>
     public ICommand ScanCommand { get; }
 
@@ -117,35 +152,37 @@ public class MainViewModel : INotifyPropertyChanged
     /// <summary>Kích hoạt quét thư mục và dựng dữ liệu xem trước.</summary>
     private async void TriggerScan()
     {
-        // Huỷ lần quét trước đó nếu có
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         _scanCts = new CancellationTokenSource();
         var ct = _scanCts.Token;
 
-        // Tạo một TaskCompletionSource để báo hiệu khi quá trình quét hoàn tất
         var tcs = new TaskCompletionSource();
         _scanCompletionSource = tcs;
 
-        // Reset trạng thái lỗi trước khi bắt đầu
         ErrorMessage = null;
         State = AppState.Scanning;
 
-        var config = new DumpConfig { RootPath = _rootPath };
-        var scanTask = Task.Run(async () =>
+        var config = new DumpConfig
         {
-            var data = await _previewProvider.BuildAsync(config, ct);
-            Preview = data;
-            State = AppState.Previewed;
-        }, ct);
+            RootPath = _rootPath,
+            IncludeGlobs = IncludeGlobs.ToList(),
+            ExcludeDirs = ExcludeDirs.ToList(),
+            ExcludeFiles = ExcludeFiles.ToList(),
+        };
 
         try
         {
-            await scanTask;
+            // await trực tiếp — giữ nguyên WPF SynchronizationContext
+            // BuildAsync tự xử lý threading nội bộ nếu cần CPU-bound work
+            var data = await _previewProvider.BuildAsync(config, ct);
+
+            // Trở về UI thread sau await → gán bình thường
+            Preview = data;
+            State = AppState.Previewed;
         }
         catch (OperationCanceledException)
         {
-            // Người dùng huỷ hoặc đường dẫn thay đổi → quay về Idle
             State = AppState.Idle;
         }
         catch (Exception ex)
@@ -155,41 +192,62 @@ public class MainViewModel : INotifyPropertyChanged
         }
         finally
         {
-            // Báo hiệu hoàn tất (không ném ngoại lệ ra ngoài)
             tcs.TrySetResult();
         }
     }
 
-    /// <summary>Thực hiện kết xuất (dùng bản nháp IDumpWriter).</summary>
+    /// <summary>Thực hiện kết xuất thực tế qua IDumpWriter.</summary>
     private async void ExportAsync()
     {
-        if (State != AppState.Previewed) return;
+        if (State != AppState.Previewed || Preview is null) return;
 
-        // Huỷ tác vụ kết xuất trước đó (nếu có)
         _exportCts?.Cancel();
         _exportCts?.Dispose();
         _exportCts = new CancellationTokenSource();
         var ct = _exportCts.Token;
 
+        var tcs = new TaskCompletionSource();
+        _exportCompletionSource = tcs;
+
         State = AppState.Exporting;
         ExportProgress = 0;
+        OutputPath = null;
 
         try
         {
-            // Mô phỏng tiến trình kết xuất (sẽ thay bằng IDumpWriter thực sau)
-            for (int i = 0; i <= 100; i += 10)
-            {
-                ct.ThrowIfCancellationRequested();
-                await Task.Delay(50, ct); // giả lập công việc
-                ExportProgress = i;
-            }
+            var outputPath = System.IO.Path.Combine(
+                _rootPath,
+                $"CodebaseDump_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
 
-            State = AppState.Done;
+            var config = new DumpConfig
+            {
+                RootPath = _rootPath,
+                OutputPath = outputPath,
+                IncludeGlobs = IncludeGlobs.ToList(),
+                ExcludeDirs = ExcludeDirs.ToList(),
+                ExcludeFiles = ExcludeFiles.ToList(),
+            };
+
+            var progressReporter = new Progress<DumpProgress>(p =>
+            {
+                ExportProgress = p.TotalFiles > 0
+                    ? (int)((double)p.ProcessedFiles / p.TotalFiles * 100)
+                    : 0;
+            });
+
+            var result = await _dumpWriter.WriteAsync(
+                config,
+                Preview.Files,
+                Preview.AsciiTree,
+                progressReporter,
+                ct);
+
+            OutputPath = result.OutputPath;
             ExportProgress = 100;
+            State = AppState.Done;
         }
         catch (OperationCanceledException)
         {
-            // Huỷ → trở về trạng thái Previewed
             State = AppState.Previewed;
             ExportProgress = 0;
         }
@@ -198,6 +256,10 @@ public class MainViewModel : INotifyPropertyChanged
             ErrorMessage = ex.Message;
             State = AppState.Error;
             ExportProgress = 0;
+        }
+        finally
+        {
+            tcs.TrySetResult();
         }
     }
 
