@@ -29,13 +29,13 @@
                 <Button Content="Go" Margin="2" Click="Go_Click"/>
             </StackPanel>
             <!--ChipListControl hiển thị danh sách glob-->
-            <local:ChipListControl ItemsSource="{Binding IncludeGlobs, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"/>
+            <local:ChipListControl ItemsSource="{Binding IncludeGlobs}"/>
         </StackPanel>
 
         <!-- Phần 2: Loại trừ thư mục -->
         <TextBlock Grid.Row="2" Text="Exclude directories" FontWeight="Bold" Margin="4,8,4,4"/>
         <local:ChipListControl Grid.Row="3" Margin="4,0"
-                               ItemsSource="{Binding ExcludeDirs, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"/>
+                       ItemsSource="{Binding ExcludeDirs}"/>
 
         <!-- Separator ngăn cách section 2 và 3 -->
         <Border Grid.Row="4" Height="1" Background="LightGray" Margin="4,8,4,0"/>

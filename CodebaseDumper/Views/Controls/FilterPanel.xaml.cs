@@ -97,13 +97,8 @@ public partial class FilterPanel : System.Windows.Controls.UserControl
     /// </summary>
     private void SetIncludeGlobs(string[] newGlobs)
     {
-        if (IncludeGlobs != null)
-        {
-            IncludeGlobs.Clear();
-            foreach (var g in newGlobs)
-            {
-                IncludeGlobs.Add(g);
-            }
-        }
+        var vm = (MainViewModel)DataContext;
+        vm.IncludeGlobs.Clear();
+        foreach (var g in newGlobs) vm.IncludeGlobs.Add(g);
     }
 }
